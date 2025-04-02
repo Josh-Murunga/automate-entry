@@ -61,7 +61,7 @@ try:
         try:
             print(f"\nProcessing row {index+2}: {row['concept_name'][:20]}...")
             
-            driver.get("https://qa.kenyahmis.org/openmrs/dictionary/concept.form")
+            driver.get("https://ba.kenyahmis.org/openmrs/dictionary/concept.form")
             th_element = driver.find_element(By.XPATH, "//th[contains(text(), 'Fully Specified Name')]")
             is_visible = th_element.is_displayed()
             print("Concept form loaded")
@@ -79,16 +79,16 @@ try:
                 error = WebDriverWait(driver, 2).until(
                     EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'Fully specified name must be unique')]"))
                 )
-                print(f"Duplicate error detected! Last successful row: {index+1}")
-                df.at[index, 'concept_id'] = "DUPLICATE_ERROR"
-                df.at[index, 'uuid'] = "DUPLICATE_ERROR"
-                break
+                print(f"Duplicate found at row {index+2} - skipping")
+                df.at[index, 'concept_id'] = "DUPLICATE"
+                df.at[index, 'uuid'] = "DUPLICATE"
+                continue
             except:
                 print("No duplicate error detected")
 
             # Dropdown handling
-            Select(driver.find_element(By.ID, "conceptClass")).select_by_visible_text("Diagnosis")
-            print("Diagnosis selected")
+            Select(driver.find_element(By.ID, "conceptClass")).select_by_visible_text("Anatomy")
+            print("Anatomy selected")
             Select(driver.find_element(By.ID, "datatype")).select_by_visible_text("N/A")
             print("N/A selected")
 
@@ -111,18 +111,15 @@ try:
             df.at[index, 'concept_id'] = concept_id
             df.at[index, 'uuid'] = uuid
 
-            # Navigate back to form for next entry
-            driver.get("https://qa.kenyahmis.org/openmrs/dictionary/concept.form")
             time.sleep(1)  # Small delay for page load
 
         except Exception as e:
-            print(f"\nERROR AT ROW {index+2}: {str(e)}")
+            print(f"Error processing row {index+2}: {str(e)}")
             log_error(f"Row {index+2} error: {traceback.format_exc()}")
-            print("Check error_log.txt for details")
-            break
+            df.at[index, 'concept_id'] = "ERROR"
+            df.at[index, 'uuid'] = "ERROR"
+            continue
         
-
-
 except Exception as e:
     print(f"\nCRITICAL ERROR: {str(e)}")
     log_error(f"Main error: {traceback.format_exc()}")
@@ -130,7 +127,7 @@ except Exception as e:
 
 finally:
     print("\nCleaning up...")
-    df.to_excel("updated_file.xlsx", index=False)
+    df.to_excel("updated_icd11_concepts.xlsx", index=False)
     print("Excel file saved")
     driver.quit()
     print("Browser closed")
