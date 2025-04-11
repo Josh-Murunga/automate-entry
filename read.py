@@ -13,7 +13,7 @@ def log_error(message):
         f.write(f"{time.ctime()} - {message}\n")
 
 try:
-    df = pd.read_excel("icd11_concepts.xlsx")
+    df = pd.read_excel("read_concepts.xlsx")
     print("Excel file loaded successfully")
 except Exception as e:
     print(f"Error loading Excel file: {str(e)}")
@@ -56,46 +56,50 @@ try:
     )
     print("Login successful")
 
-    # Main workflow
+   # Main workflow
     for index, row in df.iterrows():
         try:
             print(f"\nProcessing row {index+2}: {row['concept_name'][:20]}...")
-            
-            driver.get("https://ba.kenyahmis.org/openmrs/dictionary/concept.form")
-            th_element = driver.find_element(By.XPATH, "//th[contains(text(), 'Fully Specified Name')]")
-            is_visible = th_element.is_displayed()
-            print("Concept form loaded")
 
-            # Form interaction
+            driver.get("https://ba.kenyahmis.org/openmrs/dictionary/index.htm")
+            span_element = driver.find_element(By.XPATH, "//span[contains(text(), 'Find a concept by typing in its name or Id:')]")
+            is_visible = span_element.is_displayed()
+            print("Concept dictionary loaded")
+
+            # search interaction
             name_field = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.ID, "namesByLocale[en].name"))
+                EC.element_to_be_clickable((By.ID, "inputNode"))
             )
             name_field.clear()
             name_field.send_keys(row['concept_name'])
             print("Concept name entered")
 
-            # Error handling
-            try:
-                error = WebDriverWait(driver, 2).until(
-                    EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'Fully specified name must be unique')]"))
-                )
-                print(f"Duplicate found at row {index+2} - skipping")
-                df.at[index, 'concept_id'] = "DUPLICATE"
-                df.at[index, 'uuid'] = "DUPLICATE"
-                continue
-            except:
-                print("No duplicate error detected")
+            # Click search button
+            search_button = driver.find_element(By.XPATH, "//input[@type='button' and @name='searchButton' and @value='Search']")
+            search_button.click()
+            print("Search button clicked")
 
-            # Dropdown handling
-            Select(driver.find_element(By.ID, "conceptClass")).select_by_visible_text("Finding")
-            print("Finding selected")
-            Select(driver.find_element(By.ID, "datatype")).select_by_visible_text("N/A")
-            print("N/A selected")
+            # Wait for results
+            driver.implicitly_wait(10)
 
-            # Save handling
-            save_button = driver.find_element(By.XPATH, "//input[@type='submit' and @name='action' and @value='Save and Continue']")
-            save_button.click()
-            print("Save clicked")  
+            target_concept = row['concept_name'].strip().lower()
+
+            spans = driver.find_elements(By.XPATH, "//table[@id='openmrsSearchTable']//tbody//tr/td/span")
+
+            for span in spans:
+                text = span.text.strip().lower()
+                if text == target_concept:
+                    # Found exact match (case-insensitive), now click its parent <tr>
+                    tr = span.find_element(By.XPATH, "./ancestor::tr")
+                    tr.click()
+                    print(f"Clicked on row with concept name")
+                    break
+            else:
+                print(f"No exact case-insensitive match found for '{row['concept_name']}'")
+
+            th_element = driver.find_element(By.XPATH, "//th[contains(text(), 'Fully Specified Name')]")
+            is_visible = th_element.is_displayed()
+            print("Concept form loaded")
 
             time.sleep(2)    
             
@@ -119,7 +123,7 @@ try:
             df.at[index, 'concept_id'] = "ERROR"
             df.at[index, 'uuid'] = "ERROR"
             continue
-        
+
 except Exception as e:
     print(f"\nCRITICAL ERROR: {str(e)}")
     log_error(f"Main error: {traceback.format_exc()}")
